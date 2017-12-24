@@ -1,0 +1,339 @@
+import java.awt.BorderLayout;
+import java.awt.EventQueue;
+import java.awt.Image;
+
+import javax.swing.JFrame;
+import javax.swing.JPanel;
+import javax.swing.border.EmptyBorder;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.ImageIcon;
+import javax.swing.JOptionPane;
+import javax.swing.JTable;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.JButton;
+
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.net.URL;
+import java.net.URLConnection;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.swing.JLabel;
+
+import java.awt.Font;
+
+import javax.swing.SwingConstants;
+
+import java.awt.Color;
+
+/**
+ * Gui to display the online search result
+ * @author xiao lin
+ *
+ */
+public class SearchGUI extends JFrame {
+
+	private JPanel contentPane;
+	static Datebase database; //local dataabse
+	private JTable table;
+	private JTextField isbnText;//Text Area for enter isbn
+	private JButton btnAdd;//button to active add function
+	String tablename="book";
+	private JButton btnBack;//button to return to last gui
+	private String[] ti={"an","tn","isbn"};//array of keywords in url
+	private JTextField titleText;//Text Area for enter title
+	private JTextField authorText;//Text Area for enter author
+	private int page;//book# 
+	private int booknumber=1;//book number in html file
+	private String name;
+	int bookcout=0;//book number of this page
+	private String[][] books = new String[30][9];
+	private File output;
+	private String[] picture;//array to store book's picture
+	/**
+	 * Create the frame.
+	 */
+	public SearchGUI(Datebase database,File output) {
+		this.database=database;
+		this.output=output;
+		picture = new String[30];
+		try {
+			database.createTable(tablename);
+		} catch (Exception e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		setBounds(200, 100, 828, 548);
+		setLocationRelativeTo(null);//center the gui
+		setVisible(true);
+		contentPane = new JPanel();
+		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
+		setContentPane(contentPane);
+		contentPane.setLayout(null);
+		
+		JScrollPane scrollPane = new JScrollPane();
+		scrollPane.setBounds(25, 27, 549, 438);
+		contentPane.add(scrollPane);
+		
+		DefaultTableModel model = new DefaultTableModel();// initiate the Jtable
+		table = new JTable(model);
+		model.addColumn("ISBN");
+		model.addColumn("Title");
+		model.addColumn("Author");
+		model.addColumn("datePublished");
+		model.addColumn("Condition");
+		model.addColumn("Price");
+		
+		scrollPane.setViewportView(table);
+		
+		isbnText = new JTextField();
+		isbnText.setBounds(629, 160, 142, 29);
+		contentPane.add(isbnText);
+		isbnText.setColumns(10);
+		
+		titleText = new JTextField();
+		titleText.setBounds(629, 225, 142, 29);
+		contentPane.add(titleText);
+		titleText.setColumns(10);
+		
+		authorText = new JTextField();
+		authorText.setBounds(629, 290, 142, 29);
+		contentPane.add(authorText);
+		authorText.setColumns(10);
+		
+		JLabel lblNewLabel = new JLabel("ISBN");
+		lblNewLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		lblNewLabel.setFont(new Font("Tahoma", Font.PLAIN, 14));
+		lblNewLabel.setBounds(629, 136, 142, 14);
+		contentPane.add(lblNewLabel);
+		
+		JLabel lblNewLabel_1 = new JLabel("title");
+		lblNewLabel_1.setFont(new Font("Tahoma", Font.PLAIN, 14));
+		lblNewLabel_1.setHorizontalAlignment(SwingConstants.CENTER);
+		lblNewLabel_1.setBounds(629, 200, 142, 14);
+		contentPane.add(lblNewLabel_1);
+		
+		JLabel lblAuthor = new JLabel("author");
+		lblAuthor.setFont(new Font("Tahoma", Font.PLAIN, 14));
+		lblAuthor.setHorizontalAlignment(SwingConstants.CENTER);
+		lblAuthor.setBounds(629, 265, 142, 14);
+		contentPane.add(lblAuthor);
+		
+		JButton btnNewButton = new JButton("SEARCH");
+		btnNewButton.setFont(new Font("Tahoma", Font.PLAIN, 13));
+		btnNewButton.addActionListener(new ActionListener(){
+			public void actionPerformed(ActionEvent e) {
+				page=0;//set current page
+				bookcout=0;//how many books
+				booknumber=1;//the current book number we want to search 
+				((DefaultTableModel)table.getModel()).setNumRows(0);
+				name="http://www.abebooks.com/servlet/SearchResults?";
+				getURL();
+				PrintTable(model);
+			}//end actionPerformed
+		});
+		btnNewButton.setBounds(599, 368, 89, 36);
+		contentPane.add(btnNewButton);
+		
+		btnAdd = new JButton("ADD");
+		btnAdd.setFont(new Font("Tahoma", Font.PLAIN, 13));
+		btnAdd.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				int number=table.getSelectedRow();//get current row number 
+				String isbn=String.valueOf(table.getModel().getValueAt(number,0));//get the all info from text area
+				String title=String.valueOf(table.getModel().getValueAt(number,1));
+				String author=String.valueOf(table.getModel().getValueAt(number,2));
+				String year=String.valueOf(table.getModel().getValueAt(number,3));
+				String condition=String.valueOf(table.getModel().getValueAt(number,4));
+				try {
+					if(!database.check(isbn,tablename)){//check is book repeat
+						int result = JOptionPane.showConfirmDialog(null, "book already exist, want to add one more?",null, JOptionPane.YES_NO_OPTION);
+						if(result == JOptionPane.YES_OPTION) {
+						    database.updateQuantity(isbn,tablename);//update quantity
+						    JOptionPane.showMessageDialog(null, "book add to your database");
+						} //end if 
+					}//end if
+					
+					else{
+						database.insertDate(isbn, title, author, year, condition, tablename);
+						JOptionPane.showMessageDialog(null, "book add to your database");
+					}//end else
+				} catch (Exception e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}//end actionperformed
+		});
+		btnAdd.setBounds(713, 368, 89, 36);
+		contentPane.add(btnAdd);
+		
+		
+		btnBack = new JButton("BACK");
+		btnBack.setFont(new Font("Tahoma", Font.PLAIN, 13));
+		btnBack.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				dispose();
+				MenuGUI menugui = new MenuGUI(database,output);
+				menugui.setVisible(true);
+			}
+		});
+		btnBack.setBounds(713, 429, 89, 36);
+		contentPane.add(btnBack);
+		
+		
+		
+		JButton btnNextPage = new JButton("next ");
+		btnNextPage.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				if(bookcout==30){//if there is more book
+					bookcout=0;
+					page+=30;
+					((DefaultTableModel)table.getModel()).setNumRows(0);
+					name="http://www.abebooks.com/servlet/SearchResults?";
+					getURL();
+
+					PrintTable(model);//print the current page info to table
+				}//end if 
+			}
+		});
+		btnNextPage.setBounds(487, 476, 89, 23);
+		contentPane.add(btnNextPage);
+		
+		JButton btnPreviewPage = new JButton("preview ");
+		btnPreviewPage.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+				if(page!=0){//if it is not first page
+					bookcout=0;
+					booknumber-=60;
+					page-=30;
+					((DefaultTableModel)table.getModel()).setNumRows(0);
+					name="http://www.abebooks.com/servlet/SearchResults?";
+					getURL();
+
+					PrintTable(model);//print the current page info to table
+				}//end if 
+			}
+		});
+		btnPreviewPage.setBounds(25, 476, 89, 23);
+		contentPane.add(btnPreviewPage);
+		
+		JLabel advanceSearch = new JLabel("");
+		Image img1 = new ImageIcon(this.getClass().getResource("/search.png")).getImage();
+		Image image1=img1.getScaledInstance(220, 70, java.awt.Image.SCALE_SMOOTH);
+		advanceSearch.setIcon(new ImageIcon(image1));
+		advanceSearch.setForeground(Color.BLACK);
+		advanceSearch.setFont(new Font("Tahoma", Font.BOLD, 18));
+		advanceSearch.setHorizontalAlignment(SwingConstants.CENTER);
+		advanceSearch.setBounds(584, 39, 218, 86);
+		contentPane.add(advanceSearch);
+		
+		JButton btnNewButton_1 = new JButton("PHOTO");
+		btnNewButton_1.setFont(new Font("Tahoma", Font.PLAIN, 13));
+		btnNewButton_1.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent arg0) {
+				int number=table.getSelectedRow();//get the current row number
+				
+				try {
+					getURLInfor geturl = new getURLInfor(picture[number]);//get the img from picture array while row number is same
+					geturl.getImage();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}//end catch
+				
+				try {
+					Detail detail = new Detail(picture[number]);//print picture to a new gui
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}//end catch
+			}//end actionPerformed
+		});
+		btnNewButton_1.setBounds(599, 429, 89, 36);
+		contentPane.add(btnNewButton_1);
+	}
+	/**
+	 * get the whole line key word
+	 */
+	public void getURL(){// get whole line key word
+		String author=authorText.getText().replace(" ", "+");
+		name+=ti[0]+"="+author;// get whole key word
+		name+="&";	
+		String isbn = isbnText.getText().replace(" ", "+");
+		name+=ti[2]+"="+isbn;
+		name+="&";
+		name+="bsi="+String.valueOf(page)+"&";
+		String title=titleText.getText().replace(" ", "+");
+		name+=ti[1]+"="+title;
+	}//end getURL
+	/**
+	 * show the info to table
+	 * @param model
+	 */
+	public void PrintTable(DefaultTableModel model){
+		
+		try {
+			URL url = new URL(name);
+			BufferedReader reader = new BufferedReader(new InputStreamReader(url.openStream()));//open url 
+			String line=reader.readLine();
+			String re1=".*?";//regex for locate keyword
+			String re3="(itemprop)";//key word for the book
+			String re4="(portrait)";
+			String[] re={"(\"isbn\")","(\"name\")","(\"author\")","(\"datePublished\")","(\"itemCondition\")","(\"price\")"};//regex for key word
+			while(line!=null){//read html file line by line
+				String re2="(book-"+booknumber+")";//get the get word of current book number
+				int j=0;
+				Pattern begin = Pattern.compile(re1+re2,Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+				Matcher b = begin.matcher(line);//find the key word
+				if (b.find()){
+					Object[] array = new Object[6];
+					bookcout++;
+					booknumber++;
+					line=reader.readLine();
+					while(array[4]==null){//check is all keyword store 
+						for(int i=0;i<6;i++){//get match every every when read line
+							Pattern content = Pattern.compile(re1+re3+re1+re[i],Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+							Matcher c = content.matcher(line);//match book info key word
+							
+							Pattern pic = Pattern.compile(re1+re4,Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+							Matcher p = pic.matcher(line);//match the img file key word
+							if (c.find()){//if find book info
+								Pattern text = Pattern.compile("content=(.*\\\"(.*)\\\".*)",Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+								Matcher answer = text.matcher(line);
+								answer.find();
+								String s=answer.group(2);
+								array[i]=s;//store it to info array 
+								j++;
+							}//end if 
+							if(p.find()){//if find img
+								Pattern img1 = Pattern.compile("<img[^>]+src\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>",Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+								Matcher answer1 = img1.matcher(line);
+								answer1.find();
+								String imgname=answer1.group(1);
+								picture[bookcout-1]=imgname;//store it to picture array
+							}//end if 
+							
+						}//end for
+						line=reader.readLine();
+					}//end while
+					model.addRow(array);//add info array to jtable
+				}//end if
+				else{
+					line=reader.readLine();
+				}//end else
+			}//end try
+				
+		} catch (Exception e1) {e1.printStackTrace();}
+	}//end printTable
+}//end class
